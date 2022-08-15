@@ -5,6 +5,9 @@
 
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
+embed_migrations!("./migrations");
 extern crate dotenv;
 
 pub mod models;
@@ -28,6 +31,8 @@ pub fn db_connect() -> SqliteConnection {
 
 fn main() {
     let conn = db_connect();
+    diesel_migrations::run_pending_migrations(&conn).expect("migration error");
+
     let test = question::dsl::question.load::<Question>(&conn)
         .expect("error loading test from db");
     println!("loaded {} questions", test.len());
