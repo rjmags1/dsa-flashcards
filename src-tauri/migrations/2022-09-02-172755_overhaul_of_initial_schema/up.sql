@@ -6,6 +6,8 @@ CREATE TABLE source (
     name TEXT NOT NULL
 );
 
+INSERT INTO source (name) VALUES ("leetcode");
+
 CREATE TABLE question (
     qid INTEGER PRIMARY KEY NOT NULL,
     title TEXT NOT NULL,
