@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn = db_connect();
     diesel_migrations::run_pending_migrations(&conn).expect("migration error");
 
-    let q_check = get_lc_questions_on_init(conn).await;
+    let q_check = get_lc_questions_on_init(&conn).await;
     match q_check {
         Ok(_) => {}
         Err(err) => println!("error preloading leetcode questions: {:?}", err)

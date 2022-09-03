@@ -19,7 +19,7 @@ pub fn db_connect() -> SqliteConnection {
 }
 
 
-pub async fn db_insert_all_lc_q_base_info(
+pub async fn insert_all_lc_q_base_info(
     conn: &SqliteConnection, 
     response_questions: QuestionList
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +33,7 @@ pub async fn db_insert_all_lc_q_base_info(
     insert_new_questions(db_new_questions, conn).await?;
 
     let mut db_new_question_topics: Vec<NewQuestionTopic> = vec![];
-    let mut all_topics = get_all_topics(conn).await?;
+    let mut all_topics = select_all_topics_into_map(conn).await?;
     for rq in response_questions.questions {
         let new_topics: Vec<NewQuestionTopic> = db_format_question_topics(
             rq, Some(LEETCODE_SOURCE_ID), None, conn, &mut all_topics).await?;
@@ -86,7 +86,7 @@ async fn db_format_question_topics(
     for topic in response_question.topicTags {
         let qid: i32;
         if need_determine_db_qid {
-            qid = qid_from_src_info(src_id.unwrap(), src_qid, conn).await?;
+            qid = select_qid_from_src_info(src_id.unwrap(), src_qid, conn).await?;
         }
         else { qid = db_qid.unwrap(); }
 
@@ -105,7 +105,7 @@ async fn db_format_question_topics(
     Ok(question_topics)
 }
 
-async fn qid_from_src_info(
+async fn select_qid_from_src_info(
     src_id: i32, 
     src_qid: i32, 
     conn: &SqliteConnection
@@ -123,7 +123,7 @@ async fn qid_from_src_info(
     Ok(the_qid)
 }
 
-async fn get_all_topics(conn: &SqliteConnection) -> 
+async fn select_all_topics_into_map(conn: &SqliteConnection) -> 
 Result<HashMap<String, i32>, Box<dyn std::error::Error>> {
     // gets all distinct topic strings from db, reading into Topic struct
     use crate::db::schema::topic::dsl::*; 
@@ -196,3 +196,24 @@ async fn insert_new_questions(
     
     Ok(inserted)
 }
+
+pub async fn count_lc_questions_in_db(conn: &SqliteConnection) -> 
+Result<i64, Box<dyn std::error::Error>>  {
+    use crate::db::schema::question::dsl::*;
+    let count = question
+        .filter(source.eq(LEETCODE_SOURCE_ID))
+        .count()
+        .first::<i64>(conn)?;
+    
+    Ok(count)
+}
+
+
+
+///////////////////////////////////////
+////// ----- UNIT TESTS --------- /////
+///////////////////////////////////////
+
+// note: at this point don't see a need to write unit tests here.
+//       functions either map structs to other structs or wrap
+//       diesel queries.
