@@ -1,7 +1,6 @@
 use super::schema::{question, question_topic, topic};
 
-#[derive(Queryable, QueryableByName)]
-#[table_name="question"]
+#[derive(Queryable)]
 pub struct Question {
     pub qid: i32,
     pub title: String,
@@ -25,6 +24,30 @@ pub struct QuestionTopic {
     pub tid: i32,
 }
 
+#[derive(Queryable)]
+pub struct Star {
+    pub relid: i32,
+    pub qid: i32,
+    pub uid: i32,
+}
+
+#[derive(Queryable)]
+pub struct User {
+    pub uid: i32,
+    pub name: String,
+    pub hide_diff: bool,
+    pub hide_cat: bool,
+    pub hide_solved: bool,
+    pub dark_mode: bool,
+}
+
+#[derive(Queryable)]
+pub struct Solution {
+    pub sid: i32,
+    pub uid: i32,
+    pub qid: i32,
+    pub notes: String,
+}
 
 
 

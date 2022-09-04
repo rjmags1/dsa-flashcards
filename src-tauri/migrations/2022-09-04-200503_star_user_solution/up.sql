@@ -1,0 +1,26 @@
+CREATE TABLE user (
+    uid INTEGER PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    hide_diff BOOLEAN DEFAULT FALSE,
+    hide_cat BOOLEAN DEFAULT FALSE,
+    hide_solved BOOLEAN DEFAULT FALSE,
+    dark_mode BOOLEAN DEFAULT FALSE
+);
+INSERT INTO user (name) VALUES ("dev");
+
+CREATE TABLE star (
+    relid INTEGER PRIMARY KEY NOT NULL,
+    qid INTEGER NOT NULL,
+    uid INTEGER NOT NULL,
+    FOREIGN KEY(qid) REFERENCES question(qid),
+    FOREIGN KEY(uid) REFERENCES user(uid)
+);
+
+CREATE TABLE solution (
+    sid INTEGER PRIMARY KEY NOT NULL,
+    uid INTEGER NOT NULL,
+    qid INTEGER NOT NULL,
+    notes TEXT NOT NULL,
+    FOREIGN KEY(uid) REFERENCES user(uid),
+    FOREIGN KEY(qid) REFERENCES question(qid)
+);

@@ -19,9 +19,26 @@ table! {
 }
 
 table! {
+    solution (sid) {
+        sid -> Integer,
+        uid -> Integer,
+        qid -> Integer,
+        notes -> Text,
+    }
+}
+
+table! {
     source (sid) {
         sid -> Integer,
         name -> Text,
+    }
+}
+
+table! {
+    star (relid) {
+        relid -> Integer,
+        qid -> Integer,
+        uid -> Integer,
     }
 }
 
@@ -32,11 +49,29 @@ table! {
     }
 }
 
+table! {
+    user (uid) {
+        uid -> Integer,
+        name -> Text,
+        hide_diff -> Nullable<Bool>,
+        hide_cat -> Nullable<Bool>,
+        hide_solved -> Nullable<Bool>,
+        dark_mode -> Nullable<Bool>,
+    }
+}
+
 joinable!(question -> source (source));
+joinable!(solution -> question (qid));
+joinable!(solution -> user (uid));
+joinable!(star -> question (qid));
+joinable!(star -> user (uid));
 
 allow_tables_to_appear_in_same_query!(
     question,
     question_topic,
+    solution,
     source,
+    star,
     topic,
+    user,
 );
