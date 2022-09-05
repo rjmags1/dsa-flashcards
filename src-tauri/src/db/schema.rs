@@ -61,6 +61,8 @@ table! {
 }
 
 joinable!(question -> source (source));
+joinable!(question_topic -> question (qid));
+joinable!(question_topic -> topic (tid));
 joinable!(solution -> question (qid));
 joinable!(solution -> user (uid));
 joinable!(star -> question (qid));

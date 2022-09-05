@@ -28,6 +28,6 @@ CREATE TABLE question_topic (
     relid INTEGER PRIMARY KEY NOT NULL,
     qid INTEGER NOT NULL,
     tid INTEGER NOT NULL,
-    FOREIGN KEY(qid) REFERENCES new_question(qid),
-    FOREIGN KEY(tid) REFERENCES new_question_topic(tid)
+    FOREIGN KEY(qid) REFERENCES question(qid),
+    FOREIGN KEY(tid) REFERENCES topic(tid)
 );
