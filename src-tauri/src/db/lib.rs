@@ -1,5 +1,6 @@
 use dotenv::dotenv;
-use std::collections::HashMap;
+use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use diesel::sqlite::SqliteConnection;
 use diesel::prelude::*;
@@ -8,6 +9,8 @@ use crate::db::models::*;
 
 
 pub const LEETCODE_SOURCE_ID: i32 = 1;
+pub const SOURCELESS_QUESTION: i32 = 0;
+pub const TOPICLESS_QUESTION: i32 = 0;
 
 pub fn db_connect() -> SqliteConnection {
     dotenv().ok();
@@ -208,7 +211,167 @@ Result<i64, Box<dyn std::error::Error>>  {
     Ok(count)
 }
 
+pub struct QuestionOptions {
+    user: i32,
+    diff: Option<Vec<String>>,
+    topics: Option<Vec<i32>>,//X
+    solved: Option<Vec<bool>>,//X
+    source_ids: Option<Vec<i32>>,
+    starred: Option<Vec<bool>>,//X
+    range: Option<Vec<(i32, i32)>>,
+}
 
+type QuestionStarQTopicSolutionJoin = (
+    Question, 
+    Option<Star>, 
+    Option<QuestionTopic>, 
+    Option<Solution>
+);
+
+#[derive(Serialize)]
+pub struct QuestionQueryResult {
+    qid: i32,
+    starred: bool,
+    solved: bool,
+    topics: Vec<i32>,
+    title: String,
+    title_slug: Option<String>,
+    prompt: Option<String>,
+    difficulty: Option<String>,
+    source: Option<i32>,
+    source_qid: Option<i32>,
+}
+
+pub async fn query_questions(options: QuestionOptions) -> Result<HashMap<i32, QuestionQueryResult>, Box<dyn std::error::Error>> { //Result<Vec<Question>, Box<dyn std::error::Error>> {
+    if empty_query_option(&options) {
+        return Ok(HashMap::new());
+    }
+
+    let join_rows = join_question_soln_topic_star(options.user.clone())?;
+    let filtered_questions = filter_question_soln_topic_join(options, join_rows);
+
+    Ok(filtered_questions)
+}
+
+fn filter_question_soln_topic_join(options: QuestionOptions, join_rows: Vec<QuestionStarQTopicSolutionJoin>) -> HashMap<i32, QuestionQueryResult> {
+    let QuestionOptions { 
+        user: _, diff, topics, solved, source_ids, starred, range 
+    } = options;
+
+    let diff_set: HashSet<String> = HashSet::from_iter(diff.unwrap());
+    let topic_set: HashSet<i32> = HashSet::from_iter(topics.unwrap());
+    let solved_set: HashSet<bool> = HashSet::from_iter(solved.unwrap());
+    let source_id_set: HashSet<i32> = HashSet::from_iter(source_ids.unwrap());
+    let starred_set: HashSet<bool> = HashSet::from_iter(starred.unwrap());
+    let mut sorted_ranges = range.unwrap();
+    sorted_ranges.sort_by(|a, b| {
+        let a_first = a.0 < b.0 || (a.0 == b.0 && a.1 <= b.1);
+        if a_first { return std::cmp::Ordering::Less; }
+        return std::cmp::Ordering::Greater;
+    });
+    let ranges_len = sorted_ranges.len();
+    let mut range_idx: usize = 0;
+    let mut filtered_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+    for row in join_rows.iter() {
+        let (question_, star_, topic_, solution_) = row;
+        
+        // filter out questions not meeting criteria specified in options arg
+        while range_idx < ranges_len && question_.qid > sorted_ranges[range_idx].1 {
+            range_idx += 1;
+            if range_idx == ranges_len {
+                break;
+            }
+        }
+        let out_of_range = question_.qid < sorted_ranges[range_idx].0;
+        let bad_difficulty = !diff_set.contains(
+            &question_.difficulty.as_ref().unwrap().to_uppercase());
+        let bad_topic = (
+            topic_.is_none() && !topic_set.contains(&TOPICLESS_QUESTION)) || 
+            !topic_set.contains(&topic_.as_ref().unwrap().tid);
+        let bad_solve_status = (
+            solution_.is_none() && !solved_set.contains(&false)) || 
+            (solution_.is_some() && !solved_set.contains(&true));
+        let bad_source = (
+            question_.source.is_some() && !source_id_set.contains(&question_.source.unwrap())) ||
+            (question_.source.is_none() && !source_id_set.contains(&SOURCELESS_QUESTION));
+        let bad_starred_status = (
+            star_.is_none() && !starred_set.contains(&false)) || 
+            (star_.is_some() && !starred_set.contains(&true));
+
+        if out_of_range || bad_difficulty || bad_topic || 
+            bad_solve_status || bad_source || bad_starred_status {
+            continue;
+        }
+        
+        if !filtered_map.contains_key(&question_.qid) {
+            let new_q = QuestionQueryResult {
+                qid: question_.qid,
+                starred: star_.is_some(),
+                solved: solution_.is_some(),
+                topics: vec![],
+                title: question_.title.clone(),
+                title_slug: question_.title_slug.clone(),
+                prompt: question_.title_slug.clone(),
+                difficulty: question_.difficulty.clone(),
+                source: question_.source,
+                source_qid: question_.source_qid
+            };
+            filtered_map.insert(question_.qid, new_q);
+        }
+        if topic_.is_some() {
+            filtered_map.get_mut(&question_.qid).unwrap().topics.push(topic_.clone().unwrap().relid);
+        }
+    }
+
+    filtered_map
+}
+
+fn empty_query_option(options: &QuestionOptions) -> bool {
+    options.diff.is_none() || 
+    options.topics.is_none() || 
+    options.solved.is_none() || 
+    options.source_ids.is_none() || 
+    options.starred.is_none() || 
+    options.diff.as_ref().unwrap().len() == 0 ||
+    options.topics.as_ref().unwrap().len() == 0 ||
+    options.solved.as_ref().unwrap().len() == 0 ||
+    options.source_ids.as_ref().unwrap().len() == 0 ||
+    options.starred.as_ref().unwrap().len() == 0 ||
+    (options.range.is_some() && options.range.as_ref().unwrap().len() == 0)
+}
+
+fn join_question_soln_topic_star(uid: i32) -> Result<Vec<QuestionStarQTopicSolutionJoin>, Box<dyn std::error::Error>> {
+    use crate::db::schema;
+    use schema::question::dsl::*;
+    let conn = db_connect();
+    // get all potentially relevant rows containing quesiton info for a user.
+    // simple and not too expensive. there will very rarely be more than
+    // ~50000k rows here, and we are reading straight from disk with sqlite.
+    // only care about one user at a time here, but need
+    // all questions and their topics. there are 70 LC topics and 2300 questions, 
+    // resulting in ~7000 rows on first init after install (if preload network 
+    // call to LC hasn't failed). seems like num rows could get bad 
+    // with max growth of O(questions * topics) by definition of left join
+    // conditions. but realistically only ~3 topics per question, so avg row 
+    // θ(questions * ~3). questions will rarely be over 5000 and topics 
+    // may grow but the trend of 3 topics/questions should hold well.
+
+    let join_rows: Vec<QuestionStarQTopicSolutionJoin> = question
+        .left_outer_join(schema::star::table.on(
+            schema::star::qid.eq(qid).and(
+            // ignore star rows w/ uid != user during join
+            schema::star::uid.eq(uid)) 
+        ))
+        .left_outer_join(schema::question_topic::table)
+        .left_outer_join(schema::solution::table.on(
+            schema::solution::qid.eq(qid).and(
+            // ignore solution rows w/ uid != user during join
+            schema::solution::uid.eq(uid)) 
+        ))
+        .load(&conn)?;
+
+    Ok(join_rows)
+}
 
 ///////////////////////////////////////
 ////// ----- UNIT TESTS --------- /////
@@ -217,3 +380,56 @@ Result<i64, Box<dyn std::error::Error>>  {
 // note: at this point don't see a need to write unit tests here.
 //       functions either map structs to other structs or wrap
 //       diesel queries.
+
+mod test {
+    //use super::*;
+    
+//    #[test]
+    //fn test_empty_query_option_all_none() {
+    //}
+    //#[test]
+    //fn test_empty_query_option_all_zero_len() {
+    //}
+    //#[test]
+    //fn test_empty_query_option_none_and_zero_len() {
+    //}
+    //#[test]
+    //fn test_empty_query_option_non_empty() {
+    //}
+
+
+    //#[test]
+    //fn test_filter_question_soln_topic_join_range_none() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_range_empty_vec() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_range_nonempty_vec_1() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_range_nonempty_vec_2() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_include_sourceless() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_include_topicless() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_filter_difficulty() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_filter_topic() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_filter_solved() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_filter_source() {
+    //}
+    //#[test]
+    //fn test_filter_question_soln_topic_join_filter_starred() {
+    //}
+
+}

@@ -1,6 +1,6 @@
 use super::schema::{question, question_topic, topic};
 
-#[derive(Queryable)]
+#[derive(Queryable, Debug, Clone)]
 pub struct Question {
     pub qid: i32,
     pub title: String,
@@ -11,20 +11,20 @@ pub struct Question {
     pub source_qid: Option<i32>,
 }
 
-#[derive(Queryable, Clone)]
+#[derive(Queryable)]
 pub struct Topic {
     pub tid: i32,
     pub name: String,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Debug, Clone)]
 pub struct QuestionTopic {
     pub relid: i32,
     pub qid: i32,
     pub tid: i32,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Clone)]
 pub struct Star {
     pub relid: i32,
     pub qid: i32,
@@ -41,7 +41,7 @@ pub struct User {
     pub dark_mode: bool,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Debug, Clone)]
 pub struct Solution {
     pub sid: i32,
     pub uid: i32,

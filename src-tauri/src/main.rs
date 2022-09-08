@@ -14,7 +14,8 @@ mod db;
 mod network;
 mod init;
 
-use db::lib::db_connect;
+use std::collections::HashMap;
+use db::lib::{db_connect, QuestionQueryResult, query_questions, QuestionOptions};
 use init::lib::get_lc_questions_on_init;
 use serde::Serialize;
 
@@ -27,10 +28,17 @@ struct CommandResult {
 }
 
 
+#[derive(Serialize)]
+struct QuestionCommandResult {
+    data: HashMap<i32, QuestionQueryResult>,
+    result: CommandResult,
+}
+
+
 #[tauri::command]
 #[allow(dead_code)] 
 // rustc thinks this is dead, but its not. will be invoked as command from FE
-async fn preload_lc_questions_into_db() -> Result<CommandResult, CommandResult> {
+async fn preload_lc_questions_into_db() -> CommandResult {
     let conn = db_connect();
     let q_check = get_lc_questions_on_init(&conn).await;
     let mut message: String = "Successfully preloaded leetcode questions".to_string();
@@ -44,10 +52,34 @@ async fn preload_lc_questions_into_db() -> Result<CommandResult, CommandResult> 
         }
     }
 
-    Ok(CommandResult { message, status })
+    CommandResult { message, status }
 }
 
 
+#[tauri::command]
+#[allow(dead_code)]
+async fn get_questions(options: QuestionOptions) -> QuestionCommandResult {
+    let questions_query_result = query_questions(options).await;
+    let mut message: String = "question query successful".to_string();
+    let mut status: i32 = 500;
+    let result_map: HashMap<i32, QuestionQueryResult>;
+    match questions_query_result {
+        Ok(q_map) => {
+            result_map = q_map;
+        }
+        Err(err) => {
+            println!("could not load questions from db: {:?}", err);
+            result_map = HashMap::new();
+            message = "question query failed".to_string();
+            status = 500;
+        }
+    }
+
+    QuestionCommandResult {
+        data: result_map,
+        result: CommandResult { message, status }
+    }
+}
 
 
 #[tokio::main]
