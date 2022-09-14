@@ -9,8 +9,8 @@ use crate::db::models::*;
 
 
 pub const LEETCODE_SOURCE_ID: i32 = 1;
-pub const SOURCELESS_QUESTION: i32 = 0;
-pub const TOPICLESS_QUESTION: i32 = 0;
+pub const SOURCELESS_QUESTION_SOURCE_ID: i32 = 0;
+pub const TOPICLESS_QUESTION_TOPIC_ID: i32 = 0;
 
 pub fn db_connect() -> SqliteConnection {
     dotenv().ok();
@@ -311,14 +311,14 @@ fn filter_question_soln_topic_join(options: QuestionOptions, join_rows: Vec<Ques
             !filter_sets.diff.as_ref().unwrap().contains(
                 &question_.difficulty.as_ref().unwrap().to_uppercase());
         let bad_topic = filter_sets.topics.is_some() && ((
-            topic_.is_none() && !filter_sets.topics.as_ref().unwrap().contains(&TOPICLESS_QUESTION)) || 
-            !filter_sets.topics.as_ref().unwrap().contains(&topic_.as_ref().unwrap().tid));
+            (topic_.is_none() && !filter_sets.topics.as_ref().unwrap().contains(&TOPICLESS_QUESTION_TOPIC_ID))) || 
+            (topic_.is_some() && !filter_sets.topics.as_ref().unwrap().contains(&topic_.as_ref().unwrap().tid)));
         let bad_solve_status = filter_sets.solved.is_some() && (
             solution_.is_none() && !filter_sets.solved.as_ref().unwrap().contains(&false)) || 
             (solution_.is_some() && !filter_sets.solved.as_ref().unwrap().contains(&true));
         let bad_source = filter_sets.sources.is_some() && ((
             question_.source.is_some() && !filter_sets.sources.as_ref().unwrap().contains(&question_.source.unwrap())) ||
-            (question_.source.is_none() && !filter_sets.sources.as_ref().unwrap().contains(&SOURCELESS_QUESTION)));
+            (question_.source.is_none() && !filter_sets.sources.as_ref().unwrap().contains(&SOURCELESS_QUESTION_SOURCE_ID)));
         let bad_starred_status = filter_sets.starred.is_some() && (
             star_.is_none() && !filter_sets.starred.as_ref().unwrap().contains(&false)) || 
             (star_.is_some() && !filter_sets.starred.as_ref().unwrap().contains(&true));
@@ -344,7 +344,10 @@ fn filter_question_soln_topic_join(options: QuestionOptions, join_rows: Vec<Ques
             filtered_map.insert(question_.qid, new_q);
         }
         if topic_.is_some() {
-            filtered_map.get_mut(&question_.qid).unwrap().topics.push(topic_.clone().unwrap().relid);
+            filtered_map.get_mut(&question_.qid).unwrap().topics.push(topic_.clone().unwrap().tid);
+        }
+        else {
+            filtered_map.get_mut(&question_.qid).unwrap().topics.push(TOPICLESS_QUESTION_TOPIC_ID);
         }
     }
 
@@ -477,6 +480,10 @@ mod test {
     }
 
 
+    const TEST_QUESTIONS: i32 = 20;
+    const EASY: &str = "EASY";
+    const MEDIUM: &str = "MEDIUM";
+    const HARD: &str = "HARD";
     #[test]
     fn test_filter_question_soln_topic_join_no_range_spec() {
         let test_options = QuestionOptions {
@@ -487,13 +494,12 @@ mod test {
 
         let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
         let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
-        let test_questions = 20;
-        for test_qid in 1..test_questions + 1 {
+        for test_qid in 1..TEST_QUESTIONS + 1 {
             let test_q = Question {
                 qid: test_qid, 
                 title: "test_question".to_string(), 
 
-                title_slug: None, prompt: None, difficulty: None, 
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
                 source: None, source_qid: None 
             };
             join_rows.push((test_q, None, None, None));
@@ -503,14 +509,14 @@ mod test {
                 title: "test_question".to_string(),
 
                 topics: vec![], starred: false, solved: false,
-                title_slug: None, prompt: None, difficulty: None, 
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
                 source: None, source_qid: None
             };
             result_map.insert(test_qid, test_query_result);
         }
 
         let filter_result = filter_question_soln_topic_join(test_options, join_rows);
-        assert!(filter_result.len() == test_questions as usize);
+        assert!(filter_result.len() == TEST_QUESTIONS as usize);
         assert!(filter_result_hashmaps_match(filter_result, result_map));
         
     }
@@ -545,12 +551,12 @@ mod test {
 
         let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
         let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
-        for test_qid in 1..21 {
+        for test_qid in 1..TEST_QUESTIONS + 1 {
             let test_q = Question {
                 qid: test_qid, 
                 title: "test_question".to_string(), 
 
-                title_slug: None, prompt: None, difficulty: None, 
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
                 source: None, source_qid: None 
             };
             join_rows.push((test_q, None, None, None));
@@ -562,7 +568,7 @@ mod test {
                         title: "test_question".to_string(),
 
                         topics: vec![], starred: false, solved: false,
-                        title_slug: None, prompt: None, difficulty: None, 
+                        title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
                         source: None, source_qid: None
                     };
                     result_map.insert(test_qid, test_query_result);
@@ -576,15 +582,150 @@ mod test {
         assert!(filter_result_hashmaps_match(filter_result, result_map));
     }
 
-    //#[test]
-    //fn test_filter_question_soln_topic_join_include_sourceless() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_include_topicless() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_filter_difficulty() {
-    //}
+    #[test]
+    fn test_filter_question_soln_topic_join_include_sourceless() {
+        let test_options = QuestionOptions {
+            user: 1,
+            source_ids: Some(vec![SOURCELESS_QUESTION_SOURCE_ID]),
+
+            diff: None, topics: None, solved: None, starred: None, range: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        for test_qid in 1..TEST_QUESTIONS + 1 {
+            let test_source_id = test_qid % 4;
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+                source: Some(test_source_id), 
+
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                source_qid: None,
+            };
+            join_rows.push((test_q, None, None, None));
+
+            if test_source_id == SOURCELESS_QUESTION_SOURCE_ID {
+                let test_query_result = QuestionQueryResult {
+                    qid: test_qid,
+                    title: "test_question".to_string(),
+                    source: Some(test_source_id),
+    
+                    topics: vec![], starred: false, solved: false,
+                    title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                    source_qid: None, 
+                };
+                result_map.insert(test_qid, test_query_result);
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() as i32 == TEST_QUESTIONS / 4);
+        assert!(filter_result_hashmaps_match(filter_result, result_map));
+    }
+
+    #[test]
+    fn test_filter_question_soln_topic_join_include_topicless() {
+        let test_options = QuestionOptions {
+            user: 1,
+            topics: Some(vec![TOPICLESS_QUESTION_TOPIC_ID]),
+
+            diff: None, source_ids: None, solved: None, starred: None, range: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        for test_qid in 1..TEST_QUESTIONS + 1 {
+            let test_topic_id = test_qid % 4;
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                source_qid: None, source: None, 
+            };
+            let test_qt = QuestionTopic {
+                relid: test_qid,
+                qid: test_qid,
+                tid: test_topic_id
+            };
+            
+            if test_topic_id == TOPICLESS_QUESTION_TOPIC_ID {
+                let test_query_result = QuestionQueryResult {
+                    qid: test_qid,
+                    title: "test_question".to_string(),
+                    source: Some(test_topic_id),
+    
+                    topics: vec![], starred: false, solved: false,
+                    title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                    source_qid: None, 
+                };
+
+                result_map.insert(test_qid, test_query_result);
+                join_rows.push((test_q, None, None, None));
+            }
+            else {
+                join_rows.push((test_q.clone(), None, Some(test_qt), None));
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() as i32 == TEST_QUESTIONS / 4);
+        assert!(filter_result_hashmaps_match(filter_result, result_map));
+    }
+
+    #[test]
+    fn test_filter_question_soln_topic_join_filter_difficulty() {
+        const FILTERED_DIFFS: [&str; 2] = [EASY, HARD];
+        const DIFFS: [&str; 3] = [EASY, MEDIUM, HARD];
+        let test_options = QuestionOptions {
+            user: 1,
+            diff: Some(FILTERED_DIFFS.map(|s| s.to_string()).to_vec()), 
+
+            source_ids: None, solved: None, starred: None, range: None, topics: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut diff_idx = 0;
+        let filtered_diff_set = HashSet::from(FILTERED_DIFFS);
+        let mut num_filtered = 0;
+        for test_qid in 1..TEST_QUESTIONS + 1 {
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+                difficulty: Some(DIFFS[diff_idx].to_string()),
+
+                title_slug: None, prompt: None,  
+                source_qid: None, source: None, 
+            };
+
+            join_rows.push((test_q, None, None, None));
+            if filtered_diff_set.contains(DIFFS[diff_idx]) {
+                num_filtered += 1;
+                let test_query_result = QuestionQueryResult {
+                    qid: test_qid,
+                    title: "test_question".to_string(),
+                    difficulty: Some(DIFFS[diff_idx].to_string()), 
+
+                    topics: vec![], starred: false, solved: false,
+                    title_slug: None, prompt: None, 
+                    source_qid: None, source: None,
+                };
+                result_map.insert(test_qid, test_query_result);
+            }
+
+            diff_idx += 1;
+            if diff_idx == DIFFS.len() {
+                diff_idx = 0;
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() == num_filtered);
+        assert!(filter_result_hashmaps_match(filter_result, result_map));
+    }
+
     //#[test]
     //fn test_filter_question_soln_topic_join_filter_topic() {
     //}
