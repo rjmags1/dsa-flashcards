@@ -256,6 +256,9 @@ pub async fn query_questions(options: QuestionOptions) -> Result<HashMap<i32, Qu
     if empty_query_option(&options) {
         return Ok(HashMap::new());
     }
+    if options.range.is_some() && invalid_range(options.range.clone().unwrap()) {
+        return Err("invalid range field".into());
+    }
 
     let join_rows = join_question_soln_topic_star(options.user.clone())?;
     let filtered_questions = filter_question_soln_topic_join(options, join_rows);
@@ -280,7 +283,7 @@ fn filter_question_soln_topic_join(options: QuestionOptions, join_rows: Vec<Ques
     if range.is_some() {
         let mut sorted_ranges = range.unwrap();
         sorted_ranges.sort_by(|a, b| {
-            let a_first = a.0 < b.0 || (a.0 == b.0 && a.1 <= b.1);
+            let a_first = a.0 < b.0;
             if a_first { return std::cmp::Ordering::Less; }
             return std::cmp::Ordering::Greater;
         });
@@ -301,20 +304,21 @@ fn filter_question_soln_topic_join(options: QuestionOptions, join_rows: Vec<Ques
                 }
             }
         }
-        let out_of_range = filter_sets.ranges.is_some() && 
-            question_.qid < filter_sets.ranges.as_ref().unwrap()[range_idx].0;
+        let out_of_range = filter_sets.ranges.is_some() &&  (
+            range_idx == filter_sets.ranges.as_ref().unwrap().len() ||
+            question_.qid < filter_sets.ranges.as_ref().unwrap()[range_idx].0);
         let bad_difficulty = filter_sets.diff.is_some() && 
             !filter_sets.diff.as_ref().unwrap().contains(
                 &question_.difficulty.as_ref().unwrap().to_uppercase());
-        let bad_topic = filter_sets.topics.is_some() && (
+        let bad_topic = filter_sets.topics.is_some() && ((
             topic_.is_none() && !filter_sets.topics.as_ref().unwrap().contains(&TOPICLESS_QUESTION)) || 
-            !filter_sets.topics.as_ref().unwrap().contains(&topic_.as_ref().unwrap().tid);
+            !filter_sets.topics.as_ref().unwrap().contains(&topic_.as_ref().unwrap().tid));
         let bad_solve_status = filter_sets.solved.is_some() && (
             solution_.is_none() && !filter_sets.solved.as_ref().unwrap().contains(&false)) || 
             (solution_.is_some() && !filter_sets.solved.as_ref().unwrap().contains(&true));
-        let bad_source = filter_sets.sources.is_some() && (
+        let bad_source = filter_sets.sources.is_some() && ((
             question_.source.is_some() && !filter_sets.sources.as_ref().unwrap().contains(&question_.source.unwrap())) ||
-            (question_.source.is_none() && !filter_sets.sources.as_ref().unwrap().contains(&SOURCELESS_QUESTION));
+            (question_.source.is_none() && !filter_sets.sources.as_ref().unwrap().contains(&SOURCELESS_QUESTION)));
         let bad_starred_status = filter_sets.starred.is_some() && (
             star_.is_none() && !filter_sets.starred.as_ref().unwrap().contains(&false)) || 
             (star_.is_some() && !filter_sets.starred.as_ref().unwrap().contains(&true));
@@ -389,13 +393,26 @@ fn join_question_soln_topic_star(uid: i32) -> Result<Vec<QuestionStarQTopicSolut
     Ok(join_rows)
 }
 
+fn invalid_range(mut ranges: Vec<(i32, i32)>) -> bool {
+    ranges.sort_by(|a, b| {
+        let a_first = a.0 < b.0 || (a.0 == b.0 && a.1 <= b.1);
+        if a_first { return std::cmp::Ordering::Less; }
+        return std::cmp::Ordering::Greater;
+    });
+
+    for i in 0..ranges.len() {
+        let (start, stop) = ranges[i];
+        if start > stop || (i > 0 && ranges[i - 1].1 >= start) { 
+            return true; 
+        }
+    }
+
+    false
+}
+
 ///////////////////////////////////////
 ////// ----- UNIT TESTS --------- /////
 ///////////////////////////////////////
-
-// note: at this point don't see a need to write unit tests here.
-//       functions either map structs to other structs or wrap
-//       diesel queries.
 
 #[cfg(test)]
 mod test {
@@ -460,18 +477,105 @@ mod test {
     }
 
 
-    //#[test]
-    //fn test_filter_question_soln_topic_join_range_none() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_range_empty_vec() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_range_nonempty_vec_1() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_range_nonempty_vec_2() {
-    //}
+    #[test]
+    fn test_filter_question_soln_topic_join_no_range_spec() {
+        let test_options = QuestionOptions {
+            user: 1,
+            diff: None, topics: None, solved: None, 
+            source_ids: None, starred: None, range: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let test_questions = 20;
+        for test_qid in 1..test_questions + 1 {
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+
+                title_slug: None, prompt: None, difficulty: None, 
+                source: None, source_qid: None 
+            };
+            join_rows.push((test_q, None, None, None));
+
+            let test_query_result = QuestionQueryResult {
+                qid: test_qid,
+                title: "test_question".to_string(),
+
+                topics: vec![], starred: false, solved: false,
+                title_slug: None, prompt: None, difficulty: None, 
+                source: None, source_qid: None
+            };
+            result_map.insert(test_qid, test_query_result);
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() == test_questions as usize);
+        assert!(filter_result_hashmaps_match(filter_result, result_map));
+        
+    }
+
+    #[test]
+    fn test_invalid_range_1() {
+        let valid_range = vec![(2, 3), (1, 1), (100, 10000)];
+        assert!(invalid_range(valid_range) == false);
+    }
+    #[test]
+    fn test_invalid_range_2() {
+        let invalid = vec![(1, 2), (4, 3)];
+        assert!(invalid_range(invalid));
+    }
+    #[test]
+    fn test_invalid_range_3() {
+        let invalid = vec![(1, 4), (1, 6)];
+        assert!(invalid_range(invalid));
+    }
+
+    #[test]
+    fn test_filter_question_soln_topic_join_range_spec_1() {
+        // NOTE: invalid ranges detected before the filterer gets called
+        let test_range = vec![(1, 1), (4, 5), (9, 17)]; 
+        let num_filtered = 1 + 2 + 9;
+        let test_options = QuestionOptions {
+            user: 1,
+            diff: None, topics: None, solved: None, 
+            source_ids: None, starred: None, 
+            range: Some(test_range.clone()),
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        for test_qid in 1..21 {
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+
+                title_slug: None, prompt: None, difficulty: None, 
+                source: None, source_qid: None 
+            };
+            join_rows.push((test_q, None, None, None));
+
+            for (start, stop) in &test_range {
+                if test_qid >= *start && test_qid <= *stop {
+                    let test_query_result = QuestionQueryResult {
+                        qid: test_qid,
+                        title: "test_question".to_string(),
+
+                        topics: vec![], starred: false, solved: false,
+                        title_slug: None, prompt: None, difficulty: None, 
+                        source: None, source_qid: None
+                    };
+                    result_map.insert(test_qid, test_query_result);
+                    break;
+                }
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() == num_filtered);
+        assert!(filter_result_hashmaps_match(filter_result, result_map));
+    }
+
     //#[test]
     //fn test_filter_question_soln_topic_join_include_sourceless() {
     //}
@@ -493,5 +597,9 @@ mod test {
     //#[test]
     //fn test_filter_question_soln_topic_join_filter_starred() {
     //}
+
+    fn filter_result_hashmaps_match(map1: HashMap<i32, QuestionQueryResult>, map2: HashMap<i32, QuestionQueryResult>) -> bool {
+        map1.len() == map2.len() && map1.keys().all(|k| map2.contains_key(k))
+    }
 
 }
