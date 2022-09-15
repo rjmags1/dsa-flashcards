@@ -229,7 +229,7 @@ type QuestionStarQTopicSolutionJoin = (
     Option<Solution>
 );
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct QuestionQueryResult {
     qid: i32,
     starred: bool,
@@ -493,7 +493,7 @@ mod test {
         };
 
         let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
-        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
         for test_qid in 1..TEST_QUESTIONS + 1 {
             let test_q = Question {
                 qid: test_qid, 
@@ -512,12 +512,12 @@ mod test {
                 title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
                 source: None, source_qid: None
             };
-            result_map.insert(test_qid, test_query_result);
+            expected_result_map.insert(test_qid, test_query_result);
         }
 
         let filter_result = filter_question_soln_topic_join(test_options, join_rows);
         assert!(filter_result.len() == TEST_QUESTIONS as usize);
-        assert!(filter_result_hashmaps_match(filter_result, result_map));
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
         
     }
 
@@ -550,7 +550,7 @@ mod test {
         };
 
         let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
-        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
         for test_qid in 1..TEST_QUESTIONS + 1 {
             let test_q = Question {
                 qid: test_qid, 
@@ -571,7 +571,7 @@ mod test {
                         title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
                         source: None, source_qid: None
                     };
-                    result_map.insert(test_qid, test_query_result);
+                    expected_result_map.insert(test_qid, test_query_result);
                     break;
                 }
             }
@@ -579,7 +579,7 @@ mod test {
 
         let filter_result = filter_question_soln_topic_join(test_options, join_rows);
         assert!(filter_result.len() == num_filtered);
-        assert!(filter_result_hashmaps_match(filter_result, result_map));
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
     }
 
     #[test]
@@ -592,7 +592,7 @@ mod test {
         };
 
         let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
-        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
         for test_qid in 1..TEST_QUESTIONS + 1 {
             let test_source_id = test_qid % 4;
             let test_q = Question {
@@ -615,13 +615,13 @@ mod test {
                     title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
                     source_qid: None, 
                 };
-                result_map.insert(test_qid, test_query_result);
+                expected_result_map.insert(test_qid, test_query_result);
             }
         }
 
         let filter_result = filter_question_soln_topic_join(test_options, join_rows);
         assert!(filter_result.len() as i32 == TEST_QUESTIONS / 4);
-        assert!(filter_result_hashmaps_match(filter_result, result_map));
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
     }
 
     #[test]
@@ -634,7 +634,7 @@ mod test {
         };
 
         let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
-        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
         for test_qid in 1..TEST_QUESTIONS + 1 {
             let test_topic_id = test_qid % 4;
             let test_q = Question {
@@ -661,7 +661,7 @@ mod test {
                     source_qid: None, 
                 };
 
-                result_map.insert(test_qid, test_query_result);
+                expected_result_map.insert(test_qid, test_query_result);
                 join_rows.push((test_q, None, None, None));
             }
             else {
@@ -671,7 +671,7 @@ mod test {
 
         let filter_result = filter_question_soln_topic_join(test_options, join_rows);
         assert!(filter_result.len() as i32 == TEST_QUESTIONS / 4);
-        assert!(filter_result_hashmaps_match(filter_result, result_map));
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
     }
 
     #[test]
@@ -686,7 +686,7 @@ mod test {
         };
 
         let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
-        let mut result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
         let mut diff_idx = 0;
         let filtered_diff_set = HashSet::from(FILTERED_DIFFS);
         let mut num_filtered = 0;
@@ -712,7 +712,7 @@ mod test {
                     title_slug: None, prompt: None, 
                     source_qid: None, source: None,
                 };
-                result_map.insert(test_qid, test_query_result);
+                expected_result_map.insert(test_qid, test_query_result);
             }
 
             diff_idx += 1;
@@ -723,21 +723,205 @@ mod test {
 
         let filter_result = filter_question_soln_topic_join(test_options, join_rows);
         assert!(filter_result.len() == num_filtered);
-        assert!(filter_result_hashmaps_match(filter_result, result_map));
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
     }
 
-    //#[test]
-    //fn test_filter_question_soln_topic_join_filter_topic() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_filter_solved() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_filter_source() {
-    //}
-    //#[test]
-    //fn test_filter_question_soln_topic_join_filter_starred() {
-    //}
+    #[test]
+    fn test_filter_question_soln_topic_join_filter_topic() {
+        const FILTERED_TOPICS: [i32; 3]= [TOPICLESS_QUESTION_TOPIC_ID, 1, 2];
+        let test_options = QuestionOptions {
+            user: 1,
+            topics: Some(Vec::from(FILTERED_TOPICS)),
+
+            diff: None, source_ids: None, solved: None, starred: None, range: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut num_filtered = 0;
+        for test_qid in 1..TEST_QUESTIONS + 1 {
+            let test_topic_id = test_qid % 5;
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                source_qid: None, source: None, 
+            };
+            let test_qt = QuestionTopic {
+                relid: test_qid,
+                qid: test_qid,
+                tid: test_topic_id
+            };
+            
+            if FILTERED_TOPICS.contains(&test_topic_id) {
+                num_filtered += 1;
+                let test_query_result = QuestionQueryResult {
+                    qid: test_qid,
+                    title: "test_question".to_string(),
+                    source: Some(test_topic_id),
+    
+                    topics: vec![], starred: false, solved: false,
+                    title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                    source_qid: None, 
+                };
+
+                expected_result_map.insert(test_qid, test_query_result);
+                join_rows.push((test_q, None, None, None));
+            }
+            else {
+                join_rows.push((test_q.clone(), None, Some(test_qt), None));
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(num_filtered == expected_result_map.len() as i32);
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
+    }
+
+    #[test]
+    fn test_filter_question_soln_topic_join_filter_solved() {
+        let test_options = QuestionOptions {
+            user: 1,
+            solved: Some(vec![true]),
+
+            diff: None, topics: None,  
+            source_ids: None, starred: None, range: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        for test_qid in 1..TEST_QUESTIONS + 1 {
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                source: None, source_qid: None 
+            };
+            
+            if test_qid % 2 == 1 {
+                let test_solution = Solution {
+                    sid: test_qid,
+                    uid: 1,
+                    qid: test_qid,
+                    notes: "test notes".to_string()
+                };
+                let test_query_result = QuestionQueryResult {
+                    qid: test_qid,
+                    title: "test_question".to_string(),
+                    solved: true,
+
+                    topics: vec![], starred: false,
+                    title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                    source: None, source_qid: None
+                };
+                expected_result_map.insert(test_qid, test_query_result);
+                join_rows.push((test_q, None, None, Some(test_solution)));
+            }
+            else {
+                join_rows.push((test_q, None, None, None));
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() as i32 == TEST_QUESTIONS / 2);
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
+    }
+
+    #[test]
+    fn test_filter_question_soln_topic_join_filter_source() {
+        const FILTERED_SOURCES: [i32; 3] = [SOURCELESS_QUESTION_SOURCE_ID, 1, 2];
+        let test_options = QuestionOptions {
+            user: 1,
+            source_ids: Some(Vec::from(FILTERED_SOURCES)),
+
+            diff: None, topics: None, solved: None, starred: None, range: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        let mut num_filtered = 0;
+        for test_qid in 1..TEST_QUESTIONS + 1 {
+            let test_source_id = test_qid % 5;
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+                source: Some(test_source_id), 
+
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                source_qid: None,
+            };
+            join_rows.push((test_q, None, None, None));
+
+            if FILTERED_SOURCES.contains(&test_source_id) {
+                num_filtered += 1;
+                let test_query_result = QuestionQueryResult {
+                    qid: test_qid,
+                    title: "test_question".to_string(),
+                    source: Some(test_source_id),
+    
+                    topics: vec![], starred: false, solved: false,
+                    title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                    source_qid: None, 
+                };
+                expected_result_map.insert(test_qid, test_query_result);
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() as i32 == num_filtered);
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
+    }
+
+    #[test]
+    fn test_filter_question_soln_topic_join_filter_starred() {
+        let test_options = QuestionOptions {
+            user: 1,
+            starred: Some(vec![true]),
+
+            diff: None, topics: None,  
+            source_ids: None, solved: None, range: None,
+        };
+
+        let mut join_rows: Vec<QuestionStarQTopicSolutionJoin> = vec![];
+        let mut expected_result_map: HashMap<i32, QuestionQueryResult> = HashMap::new();
+        for test_qid in 1..TEST_QUESTIONS + 1 {
+            let test_q = Question {
+                qid: test_qid, 
+                title: "test_question".to_string(), 
+
+                title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                source: None, source_qid: None 
+            };
+            
+            if test_qid % 2 == 0 {
+                let test_star = Star {
+                    relid: test_qid,
+                    uid: 1,
+                    qid: test_qid,
+                };
+                let test_query_result = QuestionQueryResult {
+                    qid: test_qid,
+                    title: "test_question".to_string(),
+                    starred: true,
+
+                    topics: vec![], solved: false,
+                    title_slug: None, prompt: None, difficulty: Some(EASY.to_string()), 
+                    source: None, source_qid: None
+                };
+                expected_result_map.insert(test_qid, test_query_result);
+                join_rows.push((test_q, Some(test_star), None, None));
+            }
+            else {
+                join_rows.push((test_q, None, None, None));
+            }
+        }
+
+        let filter_result = filter_question_soln_topic_join(test_options, join_rows);
+        assert!(filter_result.len() as i32 == TEST_QUESTIONS / 2);
+        assert!(filter_result_hashmaps_match(filter_result, expected_result_map));
+    }
 
     fn filter_result_hashmaps_match(map1: HashMap<i32, QuestionQueryResult>, map2: HashMap<i32, QuestionQueryResult>) -> bool {
         map1.len() == map2.len() && map1.keys().all(|k| map2.contains_key(k))
