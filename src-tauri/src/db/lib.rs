@@ -336,7 +336,7 @@ fn filter_question_soln_topic_join(options: QuestionOptions, join_rows: Vec<Ques
                 topics: vec![],
                 title: question_.title.clone(),
                 title_slug: question_.title_slug.clone(),
-                prompt: question_.title_slug.clone(),
+                prompt: question_.prompt.clone(),
                 difficulty: question_.difficulty.clone(),
                 source: question_.source,
                 source_qid: question_.source_qid

@@ -35,9 +35,6 @@ struct QuestionCommandResult {
 }
 
 
-#[tauri::command]
-#[allow(dead_code)] 
-// rustc thinks this is dead, but its not. will be invoked as command from FE
 async fn preload_lc_questions_into_db() -> CommandResult {
     let conn = db_connect();
     let q_check = get_lc_questions_on_init(&conn).await;
@@ -58,6 +55,7 @@ async fn preload_lc_questions_into_db() -> CommandResult {
 
 #[tauri::command]
 #[allow(dead_code)]
+// rustc thinks this is dead, but its not. will be invoked as command from FE
 async fn get_questions(options: QuestionOptions) -> QuestionCommandResult {
     let questions_query_result = query_questions(options).await;
     let mut message: String = "question query successful".to_string();
@@ -86,8 +84,10 @@ async fn get_questions(options: QuestionOptions) -> QuestionCommandResult {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn = db_connect();
     diesel_migrations::run_pending_migrations(&conn).expect("migration error");
+    preload_lc_questions_into_db().await;
 
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![get_questions])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
     Ok(())
